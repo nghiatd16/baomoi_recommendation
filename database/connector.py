@@ -35,19 +35,64 @@ class MongoConnector(AbstractConnector):
         super().__init__(host=host, port=port, username=username, password=password, database=database)
 
     def _setup(self, *args, **kwargs):
-        print(self.config)
-        self.mongo_client = MongoClient(host=self.config['host'], 
+        pass
+    
+    def insert_document(self, orm_object):
+        with MongoClient(host=self.config['host'], 
                                         port=self.config['port'], 
                                         username=self.config['username'],
                                         password=self.config['password'],
-                                        authMechanism='SCRAM-SHA-256')
+                                        authMechanism='SCRAM-SHA-256') as mongo_client:
         
-        self.mongo_schema = self.mongo_client[self.config['database']]
-        
-        print(self.mongo_client.list_database_names())
+            self.mongo_schema = mongo_client[self.config['database']]
+            collection_name = orm_object.collection_name
+            collection_object = self.mongo_schema[collection_name]
+            data = orm_object.asdict()
+            data.pop("_id")
+            document_object = collection_object.insert_one(data)
+            orm_object._id = document_object.inserted_id
+            return orm_object
     
-    def insert_record(self, column_name, data):
-        column_object = self.mongo_schema[column_name]
-        record_object = column_object.insert_one(data)
-        return record_object.inserted_id
+    def update_document(self, orm_object):
+        with MongoClient(host=self.config['host'], 
+                                        port=self.config['port'], 
+                                        username=self.config['username'],
+                                        password=self.config['password'],
+                                        authMechanism='SCRAM-SHA-256') as mongo_client:
+        
+            self.mongo_schema = mongo_client[self.config['database']]
+            collection_name = orm_object.collection_name
+            collection_object = self.mongo_schema[collection_name]
+            query = {"_id", orm_object._id}
+            update_data = orm_object.asdict()
+            update_data.pop("_id")
+            newvalues = { "$set": update_data }
+
+            collection_object.update_one(query, newvalues)
+            return orm_object
+    
+    def delete_document(self, orm_object):
+        with MongoClient(host=self.config['host'], 
+                                        port=self.config['port'], 
+                                        username=self.config['username'],
+                                        password=self.config['password'],
+                                        authMechanism='SCRAM-SHA-256') as mongo_client:
+        
+            self.mongo_schema = mongo_client[self.config['database']]
+            collection_name = orm_object.collection_name
+            collection_object = self.mongo_schema[collection_name]
+            query = {"_id", orm_object._id}
+            collection_object.delete_one(query)
+    
+    def find_document(self, collection_name, condition_dict):
+        with MongoClient(host=self.config['host'], 
+                                        port=self.config['port'], 
+                                        username=self.config['username'],
+                                        password=self.config['password'],
+                                        authMechanism='SCRAM-SHA-256') as mongo_client:
+        
+            self.mongo_schema = mongo_client[self.config['database']]
+            collection_object = self.mongo_schema[collection_name]
+            result = collection_object.find(condition_dict)
+            return result
         
